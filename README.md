@@ -112,7 +112,7 @@ No subas `.env`, credenciales ni cadenas de conexión al repositorio. `.gitignor
 - La reserva se crea en una transacción del servidor y solo devuelve éxito después de persistirla.
 - La combinación fecha + hora es única en la base. Si dos personas intentan el mismo horario, una recibe un error recuperable y puede elegir otro sin perder los datos del formulario.
 - La vista pública devuelve únicamente fecha, horario, estado e iniciales generadas en el servidor. Nunca envía nombre completo, edad, teléfono ni zonas.
-- El administrador puede crear, editar, activar/desactivar y eliminar fechas desde el panel **Fechas de atención**; editar o reubicar reservas; y cancelarlas con confirmación. El panel de fechas permanece visible aunque no haya ninguna configurada, para poder crear una nueva sin depender de la selección del calendario. Las reservas existentes protegen a la fecha de cambios que las dejarían inválidas o huérfanas.
+- El administrador puede crear, editar, activar/desactivar y eliminar fechas desde el panel **Fechas de atención**; editar o reubicar reservas; y cancelarlas con confirmación. El panel de fechas permanece visible aunque no haya ninguna configurada, para poder crear una nueva sin depender de la selección del calendario. Al crear o editar una fecha, el selector de día está hecho a medida: propone solo viernes, sábados y domingos futuros, con navegación por mes y sin depender del control nativo del navegador. Las reservas existentes protegen a la fecha de cambios que las dejarían inválidas o huérfanas.
 - La sesión administrativa dura 12 horas, se guarda en la base y se revoca al cerrar sesión o al cambiar la contraseña. Los intentos fallidos de login tienen un límite en memoria por instancia.
 
 ### API principal
@@ -223,18 +223,15 @@ docs/              Especificación funcional
 
 ## Git
 
-Este workspace **no tiene un repositorio Git inicializado**. Para versionarlo como proyecto nuevo e independiente:
+El repositorio ya está inicializado en la rama `main` y vinculado al remoto `origin` (<https://github.com/FrancoRueta/depilacion-turnos-2026>), que corresponde a este proyecto nuevo e independiente. Para subir cambios:
 
 ```bash
-git init
 git add .
-git commit -m "Aplicación inicial de turnos de depilación"
-git branch -M main
-git remote add origin <URL-DEL-REPOSITORIO-NUEVO>
-git push -u origin main
+git commit -m "Descripción del cambio"
+git push
 ```
 
-No vincules un remoto de un proyecto anterior ni importes su historial. Antes del primer push, revisá que `.env`, `.data/` y cualquier credencial local estén fuera del commit.
+No vincules un remoto de un proyecto anterior ni importes su historial. Antes de cada commit, revisá que `.env`, `.data/` y cualquier credencial local estén fuera del commit.
 
 ## Límites conocidos
 

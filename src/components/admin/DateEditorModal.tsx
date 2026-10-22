@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
 import { ApiRequestError } from "../../api";
 import {
-  formatLongDateCapitalized,
   generateSlotTimes,
   getBusinessToday,
   minutesToTime,
-  parseDateString,
 } from "../../../shared/dates";
 import {
   DEFAULT_CLOSE_TIME,
@@ -17,8 +15,9 @@ import {
 import { validateServiceDateInput } from "../../../shared/validation";
 import type { AdminDatePayload, FieldErrors } from "../../../shared/types";
 import { Alert } from "../Alert";
-import { CalendarIcon, ClockIcon, InfoIcon } from "../Icons";
+import { ClockIcon, InfoIcon } from "../Icons";
 import { Modal } from "../Modal";
+import { ServiceDatePicker } from "./ServiceDatePicker";
 
 interface DateEditorModalProps {
   mode: "create" | "edit";
@@ -69,16 +68,6 @@ export function DateEditorModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const slots = useMemo(() => generateSlotTimes(openTime, closeTime), [openTime, closeTime]);
-
-  const dateWeekday = useMemo(() => {
-    const parts = parseDateString(date);
-    if (!parts) return null;
-    const weekday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12)).getUTCDay();
-    if (weekday === 0) return "domingo";
-    if (weekday === 5) return "viernes";
-    if (weekday === 6) return "sábado";
-    return null;
-  }, [date]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -133,32 +122,14 @@ export function DateEditorModal({
           </Alert>
         ) : null}
 
-        <div className="field">
-          <label htmlFor="service-date">Fecha de atención</label>
-          <input
-            id="service-date"
-            type="date"
-            value={date}
-            min={today}
-            onChange={(event) => {
-              setDate(event.target.value);
-              setFieldErrors((current) => ({ ...current, date: "" }));
-            }}
-            aria-invalid={Boolean(fieldErrors.date)}
-            aria-describedby={fieldErrors.date ? "service-date-error" : "service-date-hint"}
-            autoFocus
-          />
-          <p className="field-hint" id="service-date-hint">
-            {dateWeekday
-              ? `${formatLongDateCapitalized(date)}.`
-              : "Solo se permiten viernes, sábados o domingos."}
-          </p>
-          {fieldErrors.date ? (
-            <p className="field-error" id="service-date-error" role="alert">
-              {fieldErrors.date}
-            </p>
-          ) : null}
-        </div>
+        <ServiceDatePicker
+          value={date}
+          error={fieldErrors.date}
+          onChange={(nextDate) => {
+            setDate(nextDate);
+            setFieldErrors((current) => ({ ...current, date: "" }));
+          }}
+        />
 
         <div className="field-row">
           <div className="field">
