@@ -1,0 +1,50 @@
+{
+  "name": "turnos-depilacion",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Reservas de turnos de depilación, mobile-first.",
+  "engines": {
+    "node": ">=18"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:web": "vite",
+    "build": "npm run typecheck && vite build && tsup server/index.ts scripts/create-admin.ts scripts/migrate.ts scripts/seed-demo.ts --format esm --out-dir dist-server --platform node --target node18 --external pg --external @electric-sql/pglite --splitting",
+    "start": "node dist-server/server/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
+    "test": "tsx --test tests/server.test.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^4.17.21",
+    "@types/node": "^18.19.70",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.20.5",
+    "tsup": "^8.5.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.4.1"
+  }
+}
