@@ -84,6 +84,8 @@ El archivo [`.env.example`](.env.example) documenta todas las variables. Las rel
 | `DATABASE_SSL` | No | `true`/`require` para hosts remotos (valor habitual), `false`/`disable` solo para PostgreSQL local o certificados no verificables. |
 | `COOKIE_SECURE` | No | `true` detrás de HTTPS. En producción es `true` por defecto. |
 | `TRUST_PROXY` | No | `true` detrás de un proxy inverso. En producción es `true` por defecto. |
+| `CALLMEBOT_PHONE` | No | Teléfono del administrador que recibe el aviso por WhatsApp, en formato internacional (`+549...`). |
+| `CALLMEBOT_API_KEY` | No | API key de CallMeBot. Si falta junto con `CALLMEBOT_PHONE`, los avisos quedan desactivados. |
 | `PORT` | No | Puerto del servidor; muchos hostings lo asignan automáticamente. |
 | `HOST` | No | Interfaz de escucha. Usar `0.0.0.0` en el hosting. |
 | `PGLITE_DATA_DIR` | No | Solo desarrollo local. Ruta de datos de PGlite. |
@@ -113,6 +115,7 @@ No subas `.env`, credenciales ni cadenas de conexión al repositorio. `.gitignor
 - La combinación fecha + hora es única en la base. Si dos personas intentan el mismo horario, una recibe un error recuperable y puede elegir otro sin perder los datos del formulario.
 - La vista pública devuelve únicamente fecha, horario, estado e iniciales generadas en el servidor. Nunca envía nombre completo, edad, teléfono ni zonas.
 - El administrador puede crear, editar, activar/desactivar y eliminar fechas desde el panel **Fechas de atención**; editar o reubicar reservas; y cancelarlas con confirmación. El panel de fechas permanece visible aunque no haya ninguna configurada, para poder crear una nueva sin depender de la selección del calendario. Al crear o editar una fecha, el selector de día está hecho a medida: propone solo viernes, sábados y domingos futuros, con navegación por mes y sin depender del control nativo del navegador. Las reservas existentes protegen a la fecha de cambios que las dejarían inválidas o huérfanas.
+- Si `CALLMEBOT_PHONE` y `CALLMEBOT_API_KEY` están configurados, cada reserva confirmada dispara un aviso por WhatsApp al administrador con la fecha y el horario. El aviso es best-effort: no incluye datos personales y nunca revierte ni bloquea la reserva.
 - La sesión administrativa dura 12 horas, se guarda en la base y se revoca al cerrar sesión o al cambiar la contraseña. Los intentos fallidos de login tienen un límite en memoria por instancia.
 
 ### API principal
@@ -129,6 +132,30 @@ No subas `.env`, credenciales ni cadenas de conexión al repositorio. `.gitignor
 
 Las mutaciones administrativas requieren la cookie de sesión y el encabezado `x-admin-request: turnos-admin`. La cookie es `HttpOnly`, `SameSite=Strict` y `Secure` en producción.
 
+### Avisos por WhatsApp al administrador (opcional)
+
+La aplicación puede enviar un WhatsApp al administrador cada vez que se confirma una reserva. Usa [CallMeBot](https://www.callmebot.com/blog/free-api-whatsapp-messages/), un servicio gratuito pensado para notificaciones personales.
+
+El mensaje contiene únicamente la fecha y el horario del turno, por ejemplo:
+
+> Nuevo turno reservado: Viernes 23 de octubre de 2026 a las 08:00. Entrá al panel para ver los datos.
+
+Nunca incluye nombre, teléfono, edad ni zonas.
+
+**Activación:**
+
+1. Con el número que va a recibir los avisos, seguí las instrucciones de CallMeBot para activar el servicio y obtener la API key.
+2. Configurá las variables de entorno:
+   - `CALLMEBOT_PHONE`: teléfono en formato internacional, por ejemplo `+5491123456789`.
+   - `CALLMEBOT_API_KEY`: la clave que devuelve CallMeBot.
+3. Reiniciá el servidor o redesplegá. En los logs debería aparecer `Avisos por WhatsApp activados.`
+
+Si falta una de las dos variables, los avisos quedan desactivados y la aplicación funciona normalmente.
+
+**Comportamiento:** el aviso se dispara después de confirmar la reserva, tiene un timeout de 5 segundos y es *best-effort*. Si CallMeBot falla, la reserva sigue confirmada y el error se registra sin datos personales. No hay reintentos ni cola de salida; si necesitás entrega garantizada, agregá un outbox o migrá a la API oficial de WhatsApp Business (Meta), que requiere cuenta business, número dedicado, plantillas aprobadas y tiene costo por mensaje.
+
+Para desactivar los avisos, quitá o vaciá `CALLMEBOT_PHONE` y `CALLMEBOT_API_KEY`.
+
 ## Pruebas y verificación
 
 ```bash
@@ -137,7 +164,7 @@ npm run build
 npm audit
 ```
 
-La suite cubre, entre otros casos: privacidad de la respuesta pública, validación de datos, reserva duplicada, dos reservas concurrentes, autenticación, expiración de sesión, CRUD de fechas, reubicación/cancelación de reservas y protección ante cambios que afectan reservas existentes.
+La suite cubre, entre otros casos: privacidad de la respuesta pública, validación de datos, reserva duplicada, dos reservas concurrentes, autenticación, expiración de sesión, CRUD de fechas, reubicación/cancelación de reservas, protección ante cambios que afectan reservas existentes y avisos por WhatsApp (mensaje sin datos personales, timeout y fallos que no afectan la reserva).
 
 ## Despliegue en producción
 
@@ -153,7 +180,7 @@ La aplicación se pensó como **un único servicio Node.js** que sirve API y fro
 2. **Crear el servicio en Render**
    - Nuevo **Web Service** conectado a un repositorio nuevo de este proyecto.
    - Runtime: Node.js.
-   - Build command: `npm ci && npm run build`
+   - Build command: `npm ci --include=dev && npm run build`
    - Start command: `npm start`
    - Health check: `/api/health`
    - Variables de entorno mínimas:
@@ -163,6 +190,7 @@ La aplicación se pensó como **un único servicio Node.js** que sirve API y fro
      - `HOST=0.0.0.0`
      - `COOKIE_SECURE=true`
      - `TRUST_PROXY=true`
+     - Opcional: `CALLMEBOT_PHONE` y `CALLMEBOT_API_KEY` para avisos por WhatsApp.
    - El hosting asigna `PORT` automáticamente.
 
 3. **Migrar y crear el administrador**
@@ -239,6 +267,7 @@ No vincules un remoto de un proyecto anterior ni importes su historial. Antes de
 - Hay un solo administrador y un solo recurso de atención; no se gestionan múltiples empleados ni sucursales.
 - El límite de intentos de login es en memoria: se reinicia al reiniciar el proceso y no se comparte entre varias instancias. Para este uso alcanza con una instancia.
 - PGlite es solo para desarrollo local; en producción se exige PostgreSQL.
+- Los avisos por WhatsApp dependen de CallMeBot (servicio no oficial) y son best-effort: no hay reintentos ni garantía de entrega.
 - Las fechas deben cargarse manualmente desde la administración; no se crean por ser fin de semana.
 - No se configuró un despliegue automático ni un proveedor externo en esta entrega.
 

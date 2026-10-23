@@ -17,7 +17,7 @@
     "build": "npm run typecheck && vite build && tsup server/index.ts scripts/create-admin.ts scripts/migrate.ts scripts/seed-demo.ts --format esm --out-dir dist-server --platform node --target node18 --external pg --external @electric-sql/pglite --splitting",
     "start": "node dist-server/server/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
-    "test": "tsx --test tests/server.test.ts",
+    "test": "tsx --test tests/server.test.ts tests/notifications.test.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "seed:demo": "tsx scripts/seed-demo.ts"

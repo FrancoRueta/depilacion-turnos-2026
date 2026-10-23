@@ -12,6 +12,7 @@ import { createApp } from "../server/app";
 import { createOrUpdateSingleAdmin } from "../server/auth";
 import { createDatabase } from "../server/db";
 import { runMigrations } from "../server/migrations";
+import type { BookingNotification } from "../server/notifications";
 
 const NOW = new Date("2026-10-22T15:00:00-03:00");
 const ADMIN_USER = "admin-pruebas";
@@ -42,12 +43,21 @@ test("API de turnos: reservas, privacidad, concurrencia y administración", asyn
   await runMigrations(db);
   await createOrUpdateSingleAdmin(db, ADMIN_USER, ADMIN_PASSWORD);
 
+  const notificationCalls: BookingNotification[] = [];
+  let failNotifications = false;
+
   const app = createApp({
     db,
     now: () => NOW,
     secureCookies: false,
     trustProxy: false,
     serveStatic: false,
+    notifier: async (booking) => {
+      notificationCalls.push(booking);
+      if (failNotifications) {
+        throw new Error("fallo simulado de WhatsApp");
+      }
+    },
   });
   const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -230,6 +240,11 @@ test("API de turnos: reservas, privacidad, concurrencia y administración", asyn
       assert.deepEqual(Object.keys(confirmation).sort(), ["createdAt", "date", "startTime"]);
       assert.equal(confirmation.date, "2026-10-23");
       assert.equal(confirmation.startTime, "08:00");
+
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const lastNotification = notificationCalls.at(-1);
+      assert.deepEqual(lastNotification, { date: "2026-10-23", startTime: "08:00" });
+      assert.deepEqual(Object.keys(lastNotification ?? {}).sort(), ["date", "startTime"]);
 
       const publicResponse = await request("/api/public/month/2026-10");
       assert.equal(publicResponse.status, 200);
@@ -487,6 +502,74 @@ test("API de turnos: reservas, privacidad, concurrencia y administración", asyn
         adminHeader: true,
       });
       assert.equal(deleteSecondDate.status, 204);
+    });
+
+    await t.test("confirma la reserva aunque falle el aviso por WhatsApp", async () => {
+      const createDate = await request("/api/admin/dates", {
+        method: "POST",
+        body: {
+          date: "2026-10-31",
+          openTime: "08:00",
+          closeTime: "10:00",
+          active: true,
+        },
+        cookie: sessionCookie,
+        adminHeader: true,
+      });
+      assert.equal(createDate.status, 201);
+      const createdDate = await json<{ id: string }>(createDate);
+
+      const originalError = console.error;
+      const loggedErrors: unknown[][] = [];
+      console.error = (...args: unknown[]) => {
+        loggedErrors.push(args);
+      };
+
+      failNotifications = true;
+      try {
+        const response = await request("/api/public/bookings", {
+          method: "POST",
+          body: bookingPayload("2026-10-31", "08:00"),
+        });
+        assert.equal(response.status, 201);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        assert.equal(loggedErrors.length, 1);
+      } finally {
+        console.error = originalError;
+        failNotifications = false;
+      }
+
+      const publicBody = await json<PublicMonthResponse>(
+        await request("/api/public/month/2026-10"),
+      );
+      assert.equal(
+        publicBody.dates
+          .find((item) => item.date === "2026-10-31")
+          ?.slots.find((slot) => slot.time === "08:00")?.status,
+        "booked",
+      );
+
+      const adminBody = await json<AdminMonthResponse>(
+        await request("/api/admin/month/2026-10", { cookie: sessionCookie }),
+      );
+      const createdBooking = adminBody.dates
+        .find((item) => item.date === "2026-10-31")
+        ?.bookings.find((item) => item.startTime === "08:00");
+      assert.ok(createdBooking);
+
+      const cancel = await request(`/api/admin/bookings/${createdBooking.id}`, {
+        method: "DELETE",
+        cookie: sessionCookie,
+        adminHeader: true,
+      });
+      assert.equal(cancel.status, 204);
+
+      const removeDate = await request(`/api/admin/dates/${createdDate.id}`, {
+        method: "DELETE",
+        cookie: sessionCookie,
+        adminHeader: true,
+      });
+      assert.equal(removeDate.status, 204);
     });
 
     await t.test("exige la cabecera interna en cada mutación administrativa", async () => {

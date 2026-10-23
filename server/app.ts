@@ -23,6 +23,7 @@ import { config } from "./config";
 import type { Database } from "./db";
 import { ApiError, isApiError, validationError } from "./errors";
 import { isValidUuid } from "./ids";
+import type { BookingNotification, BookingNotifier } from "./notifications";
 import {
   createPublicBooking,
   deleteAdminBooking,
@@ -42,6 +43,7 @@ export interface CreateAppOptions {
   trustProxy?: boolean;
   serveStatic?: boolean;
   staticDir?: string;
+  notifier?: BookingNotifier;
 }
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
@@ -139,6 +141,24 @@ function ensureUuid(value: string): string {
   return value;
 }
 
+function notifyBookingSafely(
+  notifier: BookingNotifier | undefined,
+  booking: BookingNotification,
+): void {
+  if (!notifier) return;
+
+  const logFailure = () => {
+    console.error("No se pudo enviar el aviso de reserva por WhatsApp.");
+  };
+
+  try {
+    void notifier(booking).catch(logFailure);
+  } catch {
+    // Un notificador mal configurado o síncrono no debe afectar la reserva.
+    logFailure();
+  }
+}
+
 export function createApp(options: CreateAppOptions): express.Express {
   const db = options.db;
   const now = options.now ?? (() => new Date());
@@ -204,6 +224,10 @@ export function createApp(options: CreateAppOptions): express.Express {
     asyncHandler(async (req, res) => {
       const confirmation = await createPublicBooking(db, req.body, now());
       res.status(201).json(confirmation);
+      notifyBookingSafely(options.notifier, {
+        date: confirmation.date,
+        startTime: confirmation.startTime,
+      });
     }),
   );
 

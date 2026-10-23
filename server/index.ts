@@ -3,11 +3,17 @@ import { createApp } from "./app";
 import { createDatabase } from "./db";
 import { runMigrations } from "./migrations";
 import { countAdmins } from "./auth";
+import { createCallMeBotNotifier } from "./notifications";
 
 async function main(): Promise<void> {
   const db = await createDatabase();
   await runMigrations(db);
-  const app = createApp({ db });
+  const notifier =
+    createCallMeBotNotifier({
+      phone: config.callMeBotPhone,
+      apiKey: config.callMeBotApiKey,
+    }) ?? undefined;
+  const app = createApp({ db, notifier });
   const port = getPort();
   const admins = await countAdmins(db);
 
@@ -17,6 +23,11 @@ async function main(): Promise<void> {
       admins > 0
         ? "Administración configurada."
         : "Administración sin configurar: ejecutá npm run admin:create.",
+    );
+    console.log(
+      notifier
+        ? "Avisos por WhatsApp activados."
+        : "Avisos por WhatsApp desactivados: configurá CALLMEBOT_PHONE y CALLMEBOT_API_KEY para activarlos.",
     );
   });
 

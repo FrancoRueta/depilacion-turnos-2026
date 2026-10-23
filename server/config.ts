@@ -12,6 +12,8 @@ export const config = {
   host: process.env.HOST ?? "0.0.0.0",
   cookieSecure: booleanFromEnv(process.env.COOKIE_SECURE, process.env.NODE_ENV === "production"),
   trustProxy: booleanFromEnv(process.env.TRUST_PROXY, process.env.NODE_ENV === "production"),
+  callMeBotPhone: process.env.CALLMEBOT_PHONE,
+  callMeBotApiKey: process.env.CALLMEBOT_API_KEY,
 };
 
 export function getPort(): number {
